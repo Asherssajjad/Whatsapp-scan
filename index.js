@@ -82,6 +82,23 @@ client.on('ready', async () => {
     console.log('Bot is ready and listening for new messages.');
 });
 
+client.on('disconnected', async (reason) => {
+    console.log('Client was logged out', reason);
+    
+    // Clear all past data from database
+    try {
+        await pool.query('DELETE FROM messages');
+        await pool.query('DELETE FROM contacts');
+        console.log('Database successfully cleared after logout.');
+    } catch (e) {
+        console.error('Failed to clear database on disconnect:', e);
+    }
+    
+    // Safely exit to let Railway restart the app and generate a fresh QR code
+    console.log('Restarting process for clean slate...');
+    process.exit(0);
+});
+
 client.on('message', async (msg) => {
     // Only track private chats (not groups)
     if (!msg.from.includes('@g.us')) {
@@ -242,21 +259,34 @@ app.post('/toggle-status/:id', async (req, res) => {
 app.post('/bulk-send', async (req, res) => {
     const { contactIds, message } = req.body;
     if (clientStatus === 'Connected' && message && Array.isArray(contactIds)) {
-        let sentCount = 0;
-        for (const id of contactIds) {
-            try {
-                await client.sendMessage(id, message);
-                sentCount++;
-                // 2-second delay between bulk messages to avoid bans
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            } catch (err) {
-                console.error(`Bulk send failed for ${id}:`, err);
-            }
-        }
-        return res.json({ success: true, sentCount });
+        
+        // Start background process so the request doesn't timeout
+        sendBulkInBackground(contactIds, message);
+        
+        return res.json({ success: true, count: contactIds.length });
     }
     res.json({ success: false });
 });
+
+async function sendBulkInBackground(contactIds, message) {
+    console.log(`Starting bulk send for ${contactIds.length} contacts with a 2-minute delay...`);
+    for (const id of contactIds) {
+        if (clientStatus !== 'Connected') {
+            console.log("Bulk send stopped because WhatsApp disconnected.");
+            break; 
+        }
+        try {
+            await client.sendMessage(id, message);
+            console.log(`Bulk message sent to ${id}`);
+        } catch (err) {
+            console.error(`Bulk send failed for ${id}:`, err);
+        }
+        
+        // Exactly 2-minute delay (120,000 milliseconds) between messages to prevent WhatsApp bans
+        await new Promise(resolve => setTimeout(resolve, 120000));
+    }
+    console.log(`Finished background bulk messaging.`);
+}
 
 app.post('/api/sync-chats', async (req, res) => {
     if (clientStatus !== 'Connected') return res.json({ success: false, error: 'WhatsApp not connected' });
@@ -281,6 +311,24 @@ app.post('/api/sync-chats', async (req, res) => {
         res.json({ success: true, count: loadedCount });
     } catch (err) {
         console.error('Sync failed:', err);
+        res.json({ success: false, error: err.message });
+    }
+});
+
+app.post('/api/logout', async (req, res) => {
+    try {
+        if (clientStatus === 'Connected') {
+            await client.logout(); // Triggers the disconnected event which clears DB and exits
+            res.json({ success: true });
+        } else {
+            // Force clear if they aren't connected fully
+            await pool.query('DELETE FROM messages');
+            await pool.query('DELETE FROM contacts');
+            res.json({ success: true });
+            setTimeout(() => process.exit(0), 1000);
+        }
+    } catch (err) {
+        console.error('Logout failed:', err);
         res.json({ success: false, error: err.message });
     }
 });

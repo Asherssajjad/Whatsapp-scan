@@ -392,9 +392,16 @@
                 <p class="subtitle">Monitor your automated WhatsApp interactions</p>
             </div>
             
-            <div class="status-indicator <%= status === 'Connected' ? 'status-connected' : 'status-disconnected' %>">
-                <i class="fas <%= status === 'Connected' ? 'fa-check-circle' : 'fa-exclamation-triangle' %>"></i>
-                <%= status %>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <% if (status === 'Connected') { %>
+                    <button class="btn" style="background: rgba(255,51,102,0.1); border: 1px solid var(--danger); color: var(--danger); padding: 8px 16px; font-size: 0.85rem; width: auto;" onclick="logout()" title="Logout and clear past data">
+                        <i class="fas fa-sign-out-alt"></i> Disconnect
+                    </button>
+                <% } %>
+                <div class="status-indicator <%= status === 'Connected' ? 'status-connected' : 'status-disconnected' %>">
+                    <i class="fas <%= status === 'Connected' ? 'fa-check-circle' : 'fa-exclamation-triangle' %>"></i>
+                    <%= status %>
+                </div>
             </div>
         </header>
 
@@ -589,6 +596,24 @@
             btn.disabled = false;
         }
 
+        // Logout Logic
+        async function logout() {
+            if (!confirm("Are you sure you want to disconnect WhatsApp? This will permanently delete all synced contacts and messages from the database!")) return;
+            
+            try {
+                const res = await fetch('/api/logout', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Successfully logged out! The system is restarting to generate a fresh QR code.');
+                    window.location.reload();
+                } else {
+                    alert('Failed to logout.');
+                }
+            } catch (e) {
+                alert('Error logging out.');
+            }
+        }
+
         // Send Bulk Logic
         async function sendBulkMessage() {
             const selected = Array.from(document.querySelectorAll('.contact-checkbox:checked')).map(cb => cb.value);
@@ -607,7 +632,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert(`Successfully sent ${data.sentCount} messages!`);
+                    alert(`Successfully queued ${data.count} messages! They will now be sent automatically one-by-one with a 2-minute delay between each to protect your WhatsApp account.`);
                     closeBulkModal();
                     document.getElementById('bulkMessage').value = '';
                 } else {
