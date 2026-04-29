@@ -3,8 +3,7 @@ const qrcodeTerminal = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const express = require('express');
 const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,28 +16,45 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 let clientStatus = 'Disconnected';
 let lastQR = '';
-let db;
+let pool;
 
 // Load Config
 let config = JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
 
 // Initialize Database
 async function initDb() {
-    db = await open({
-        filename: './database.db',
-        driver: sqlite3.Database
+    // Railway automatically provides process.env.DATABASE_URL when linked
+    const connectionString = process.env.DATABASE_URL;
+    
+    if (!connectionString) {
+        console.warn("WARNING: No DATABASE_URL found. Using local postgres string if applicable.");
+    }
+
+    pool = new Pool({
+        connectionString: connectionString || 'postgresql://postgres:postgres@localhost:5432/whatsapp',
+        ssl: connectionString && !connectionString.includes('localhost') ? { rejectUnauthorized: false } : false
     });
-    await db.exec(`
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS contacts (
             id TEXT PRIMARY KEY,
             name TEXT,
-            last_msg_received INTEGER,
-            last_followup_sent INTEGER,
+            last_msg_received BIGINT,
+            last_followup_sent BIGINT,
             followup_count INTEGER DEFAULT 0,
             status TEXT DEFAULT 'active'
         )
     `);
-    console.log('Database initialized');
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            contact_id TEXT,
+            body TEXT,
+            timestamp BIGINT,
+            is_from_me BOOLEAN
+        )
+    `);
+    console.log('PostgreSQL Database initialized');
 }
 
 // WhatsApp Client
@@ -68,13 +84,31 @@ client.on('message', async (msg) => {
         const timestamp = Math.floor(Date.now() / 1000);
         const contact = await msg.getContact();
         
-        await db.run(
+        await pool.query(
             `INSERT INTO contacts (id, name, last_msg_received, status) 
-             VALUES (?, ?, ?, 'active') 
-             ON CONFLICT(id) DO UPDATE SET last_msg_received = ?, status = 'active'`,
+             VALUES ($1, $2, $3, 'active') 
+             ON CONFLICT(id) DO UPDATE SET last_msg_received = $4, status = 'active'`,
             [msg.from, contact.pushname || 'Unknown', timestamp, timestamp]
         );
+        
+        await pool.query(
+            `INSERT INTO messages (id, contact_id, body, timestamp, is_from_me) 
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+            [msg.id._serialized, msg.from, msg.body, timestamp, false]
+        );
         console.log(`Updated contact: ${msg.from}`);
+    }
+});
+
+// Track outgoing messages (manual or automated)
+client.on('message_create', async (msg) => {
+    if (msg.fromMe && !msg.to.includes('@g.us')) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        await pool.query(
+            `INSERT INTO messages (id, contact_id, body, timestamp, is_from_me) 
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+            [msg.id._serialized, msg.to, msg.body, timestamp, true]
+        );
     }
 });
 
@@ -86,19 +120,20 @@ async function checkFollowUps() {
     const now = Math.floor(Date.now() / 1000);
     const delaySeconds = config.followUpDays * 24 * 60 * 60;
 
-    const pending = await db.all(
+    const res = await pool.query(
         `SELECT * FROM contacts 
          WHERE status = 'active' 
-         AND last_msg_received < ? 
+         AND last_msg_received < $1 
          AND (last_followup_sent IS NULL OR last_followup_sent < last_msg_received)`,
         [now - delaySeconds]
     );
+    const pending = res.rows;
 
     for (const contact of pending) {
         try {
             await client.sendMessage(contact.id, config.followUpMessage);
-            await db.run(
-                `UPDATE contacts SET last_followup_sent = ?, followup_count = followup_count + 1 WHERE id = ?`,
+            await pool.query(
+                `UPDATE contacts SET last_followup_sent = $1, followup_count = followup_count + 1 WHERE id = $2`,
                 [now, contact.id]
             );
             console.log(`Follow-up sent to: ${contact.id}`);
@@ -112,7 +147,13 @@ async function checkFollowUps() {
 
 // Routes
 app.get('/', async (req, res) => {
-    const contacts = await db.all('SELECT * FROM contacts ORDER BY last_msg_received DESC LIMIT 50');
+    let contacts = [];
+    try {
+        const result = await pool.query('SELECT * FROM contacts ORDER BY last_msg_received DESC LIMIT 50');
+        contacts = result.rows;
+    } catch (e) {
+        console.error('Error fetching contacts:', e);
+    }
     res.render('index', { 
         status: clientStatus, 
         qr: lastQR, 
@@ -126,6 +167,38 @@ app.post('/update-config', (req, res) => {
     config.followUpDays = parseInt(req.body.days);
     fs.writeFileSync('./config.json', JSON.stringify(config, null, 4));
     res.redirect('/');
+});
+
+app.get('/chat/:id', async (req, res) => {
+    const contactId = req.params.id;
+    try {
+        const contactRes = await pool.query('SELECT * FROM contacts WHERE id = $1', [contactId]);
+        const contact = contactRes.rows[0];
+        if (!contact) return res.redirect('/');
+        
+        const msgRes = await pool.query('SELECT * FROM messages WHERE contact_id = $1 ORDER BY timestamp ASC', [contactId]);
+        res.render('chat', { 
+            status: clientStatus, 
+            contact, 
+            messages: msgRes.rows 
+        });
+    } catch (e) {
+        console.error('Error fetching chat:', e);
+        res.redirect('/');
+    }
+});
+
+app.post('/chat/:id/send', async (req, res) => {
+    const contactId = req.params.id;
+    const message = req.body.message;
+    if (clientStatus === 'Connected' && message) {
+        try {
+            await client.sendMessage(contactId, message);
+        } catch (err) {
+            console.error('Failed to send message:', err);
+        }
+    }
+    res.redirect(`/chat/${contactId}`);
 });
 
 // Start Everything

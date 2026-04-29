@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with <%= contact.name %> | Nexus</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface: rgba(22, 28, 45, 0.8);
+            --primary: #00ff88;
+            --secondary: #00d4ff;
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+            --msg-sent: rgba(0, 255, 136, 0.15);
+            --msg-received: rgba(30, 41, 59, 0.8);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .back-btn {
+            color: var(--text-main);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .back-btn:hover { color: var(--primary); }
+
+        .contact-header { display: flex; align-items: center; gap: 15px; }
+        .avatar {
+            width: 45px; height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 1.2rem;
+        }
+        .contact-name { font-size: 1.2rem; font-weight: 600; }
+        .contact-phone { color: var(--text-muted); font-size: 0.9rem; }
+
+        /* Chat Container */
+        .chat-container {
+            flex: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message-received {
+            background: var(--msg-received);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .message-sent {
+            background: var(--msg-sent);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+            text-align: right;
+            display: block;
+        }
+
+        /* Input Area */
+        .input-area {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            position: sticky;
+            bottom: 0;
+        }
+
+        .input-container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            gap: 15px;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 25px;
+            padding: 15px 20px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .chat-input:focus { border-color: var(--primary); }
+
+        .send-btn {
+            background: linear-gradient(135deg, var(--primary), #00c868);
+            color: #000;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .send-btn:hover { transform: scale(1.05); }
+        .send-btn:disabled { background: #555; cursor: not-allowed; box-shadow: none; }
+        
+        .empty-chat {
+            text-align: center;
+            color: var(--text-muted);
+            margin-top: 5rem;
+        }
+        .empty-chat i { font-size: 4rem; opacity: 0.2; margin-bottom: 1rem; }
+
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="/" class="back-btn">
+            <i class="fas fa-arrow-left"></i> Dashboard
+        </a>
+        <div class="contact-header">
+            <div class="avatar"><%= contact.name ? contact.name.charAt(0).toUpperCase() : '?' %></div>
+            <div>
+                <div class="contact-name"><%= contact.name || 'Unknown User' %></div>
+                <div class="contact-phone"><%= contact.id.split('@')[0] %></div>
+            </div>
+        </div>
+        <div style="width: 100px;"></div> <!-- Spacer -->
+    </nav>
+
+    <div class="chat-container" id="chatContainer">
+        <% if (messages.length === 0) { %>
+            <div class="empty-chat">
+                <i class="fas fa-comments"></i>
+                <h2>No messages recorded yet</h2>
+                <p>New messages will appear here once the system tracks them.</p>
+            </div>
+        <% } %>
+
+        <% messages.forEach(msg => { %>
+            <div class="message <%= msg.is_from_me ? 'message-sent' : 'message-received' %>">
+                <div><%= msg.body %></div>
+                <span class="message-time">
+                    <%= new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) %>
+                </span>
+            </div>
+        <% }) %>
+    </div>
+
+    <div class="input-area">
+        <form action="/chat/<%= contact.id %>/send" method="POST" class="input-container">
+            <input type="text" name="message" class="chat-input" placeholder="Type a message..." required autocomplete="off" <%= status !== 'Connected' ? 'disabled' : '' %>>
+            <button type="submit" class="send-btn" <%= status !== 'Connected' ? 'disabled' : '' %>>
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Auto-scroll to bottom of chat
+        const container = document.getElementById('chatContainer');
+        container.scrollTop = container.scrollHeight;
+
+        // Simple poll to refresh chat every 10 seconds if idle
+        setInterval(() => {
+            // Only reload if user isn't typing
+            if(document.activeElement.tagName !== 'INPUT') {
+                window.location.reload();
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

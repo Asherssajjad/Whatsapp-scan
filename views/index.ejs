@@ -462,6 +462,7 @@
                             <th>Last Interaction</th>
                             <th>Follow-ups Sent</th>
                             <th>Status</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -494,12 +495,17 @@
                                         <i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i> Tracking
                                     </span>
                                 </td>
+                                <td>
+                                    <a href="/chat/<%= c.id %>" class="btn" style="padding: 8px 16px; font-size: 0.85rem; width: auto; display: inline-flex; text-decoration: none;">
+                                        <i class="fas fa-comment-dots"></i> View Chat
+                                    </a>
+                                </td>
                             </tr>
                         <% }) %>
                         
                         <% if (contacts.length === 0) { %>
                             <tr>
-                                <td colspan="4">
+                                <td colspan="5">
                                     <div class="empty-state">
                                         <i class="fas fa-inbox"></i>
                                         <h3>No Contacts Tracked Yet</h3>
