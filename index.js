@@ -96,6 +96,21 @@ client.on('ready', async () => {
                      ON CONFLICT(id) DO NOTHING`,
                     [chat.id._serialized, chat.name || 'Unknown User', timestamp]
                 );
+                
+                // Fetch last 10 messages for this chat so old chats are visible
+                try {
+                    const pastMsgs = await chat.fetchMessages({ limit: 10 });
+                    for (const m of pastMsgs) {
+                        await pool.query(
+                            `INSERT INTO messages (id, contact_id, body, timestamp, is_from_me) 
+                             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+                            [m.id._serialized, chat.id._serialized, m.body, m.timestamp, m.fromMe]
+                        );
+                    }
+                } catch(e) {
+                    // Ignore errors if chat messages can't be fetched
+                }
+                
                 loadedCount++;
             }
         }
@@ -235,11 +250,31 @@ app.post('/toggle-status/:id', async (req, res) => {
         if (contactRes.rows.length > 0) {
             const newStatus = contactRes.rows[0].status === 'active' ? 'paused' : 'active';
             await pool.query('UPDATE contacts SET status = $1 WHERE id = $2', [newStatus, contactId]);
+            return res.json({ success: true, status: newStatus });
         }
     } catch (e) {
         console.error('Error toggling status:', e);
     }
-    res.redirect('/');
+    res.json({ success: false });
+});
+
+app.post('/bulk-send', express.json(), async (req, res) => {
+    const { contactIds, message } = req.body;
+    if (clientStatus === 'Connected' && message && Array.isArray(contactIds)) {
+        let sentCount = 0;
+        for (const id of contactIds) {
+            try {
+                await client.sendMessage(id, message);
+                sentCount++;
+                // 2-second delay between bulk messages to avoid bans
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            } catch (err) {
+                console.error(`Bulk send failed for ${id}:`, err);
+            }
+        }
+        return res.json({ success: true, sentCount });
+    }
+    res.json({ success: false });
 });
 
 // Start Everything

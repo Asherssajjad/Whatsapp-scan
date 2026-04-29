@@ -450,14 +450,18 @@
 
         <!-- Contacts Tracker -->
         <div class="glass-card">
-            <div class="card-header">
-                <i class="fas fa-address-book"></i> Active Contacts Pipeline
+            <div class="card-header" style="justify-content: space-between;">
+                <div><i class="fas fa-address-book"></i> Active Contacts Pipeline</div>
+                <button id="bulkSendBtn" class="btn" style="width: auto; padding: 10px 20px; font-size: 0.9rem; background: var(--secondary);" onclick="openBulkModal()">
+                    <i class="fas fa-paper-plane"></i> Send Custom Message to Selected
+                </button>
             </div>
             
             <div class="table-container">
                 <table class="contacts-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
                             <th>Contact identity</th>
                             <th>Last Interaction</th>
                             <th>Follow-ups Sent</th>
@@ -468,6 +472,7 @@
                     <tbody>
                         <% contacts.forEach(c => { %>
                             <tr>
+                                <td><input type="checkbox" class="contact-checkbox" value="<%= c.id %>"></td>
                                 <td>
                                     <div class="contact-info">
                                         <div class="avatar">
@@ -490,7 +495,7 @@
                                 <td>
                                     <span class="badge"><%= c.followup_count %> Delivered</span>
                                 </td>
-                                <td>
+                                <td id="status-<%= c.id %>">
                                     <% if (c.status === 'active') { %>
                                         <span style="color: var(--primary); font-size: 0.9rem;">
                                             <i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i> Active
@@ -502,11 +507,9 @@
                                     <% } %>
                                 </td>
                                 <td>
-                                    <form action="/toggle-status/<%= c.id %>" method="POST" style="display: inline;">
-                                        <button type="submit" class="btn" style="padding: 8px 12px; font-size: 0.85rem; width: auto; display: inline-flex; background: <%= c.status === 'active' ? 'var(--surface)' : 'var(--primary)' %>; color: <%= c.status === 'active' ? 'var(--text-main)' : '#000' %>; border: 1px solid var(--border); margin-right: 5px;" title="<%= c.status === 'active' ? 'Pause Automation' : 'Start Automation' %>">
-                                            <i class="fas <%= c.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i>
-                                        </button>
-                                    </form>
+                                    <button onclick="toggleStatus('<%= c.id %>')" id="btn-<%= c.id %>" class="btn" style="padding: 8px 12px; font-size: 0.85rem; width: auto; display: inline-flex; background: <%= c.status === 'active' ? 'var(--surface)' : 'var(--primary)' %>; color: <%= c.status === 'active' ? 'var(--text-main)' : '#000' %>; border: 1px solid var(--border); margin-right: 5px;" title="<%= c.status === 'active' ? 'Pause Automation' : 'Start Automation' %>">
+                                        <i class="fas <%= c.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i>
+                                    </button>
                                     <a href="/chat/<%= c.id %>" class="btn" style="padding: 8px 16px; font-size: 0.85rem; width: auto; display: inline-flex; text-decoration: none;">
                                         <i class="fas fa-comment-dots"></i> View Chat
                                     </a>
@@ -531,12 +534,98 @@
         </div>
     </main>
 
+    <!-- Bulk Send Modal -->
+    <div id="bulkModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+        <div class="glass-card" style="width: 500px; max-width: 90%;">
+            <div class="card-header">
+                <i class="fas fa-paper-plane"></i> Bulk Send to Selected (<span id="selectedCount">0</span>)
+            </div>
+            <textarea id="bulkMessage" class="form-control" placeholder="Type your message here..."></textarea>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button class="btn" style="background: var(--surface); color: white;" onclick="closeBulkModal()">Cancel</button>
+                <button class="btn" id="confirmBulkSendBtn" onclick="sendBulkMessage()">Send Messages</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Checkboxes logic
+        function toggleSelectAll() {
+            const isChecked = document.getElementById('selectAll').checked;
+            document.querySelectorAll('.contact-checkbox').forEach(cb => cb.checked = isChecked);
+        }
+
+        // Modal logic
+        function openBulkModal() {
+            const selected = document.querySelectorAll('.contact-checkbox:checked');
+            if (selected.length === 0) return alert('Please select at least one contact!');
+            document.getElementById('selectedCount').innerText = selected.length;
+            document.getElementById('bulkModal').style.display = 'flex';
+        }
+        function closeBulkModal() { document.getElementById('bulkModal').style.display = 'none'; }
+
+        // Send Bulk Logic
+        async function sendBulkMessage() {
+            const selected = Array.from(document.querySelectorAll('.contact-checkbox:checked')).map(cb => cb.value);
+            const message = document.getElementById('bulkMessage').value;
+            if (!message) return alert('Please enter a message.');
+
+            const btn = document.getElementById('confirmBulkSendBtn');
+            btn.innerText = 'Sending...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/bulk-send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contactIds: selected, message })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Successfully sent ${data.sentCount} messages!`);
+                    closeBulkModal();
+                    document.getElementById('bulkMessage').value = '';
+                } else {
+                    alert('Failed to send messages.');
+                }
+            } catch (e) {
+                alert('Error sending messages.');
+            }
+            btn.innerText = 'Send Messages';
+            btn.disabled = false;
+        }
+
+        // AJAX Toggle Logic (No page refresh)
+        async function toggleStatus(id) {
+            try {
+                const res = await fetch(`/toggle-status/${id}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    const statusTd = document.getElementById(`status-${id}`);
+                    const btn = document.getElementById(`btn-${id}`);
+                    
+                    if (data.status === 'active') {
+                        statusTd.innerHTML = `<span style="color: var(--primary); font-size: 0.9rem;"><i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i> Active</span>`;
+                        btn.style.background = 'var(--surface)';
+                        btn.style.color = 'var(--text-main)';
+                        btn.innerHTML = '<i class="fas fa-pause"></i>';
+                        btn.title = 'Pause Automation';
+                    } else {
+                        statusTd.innerHTML = `<span style="color: var(--text-muted); font-size: 0.9rem;"><i class="fas fa-pause-circle" style="font-size: 0.9rem; vertical-align: middle; margin-right: 4px;"></i> Paused</span>`;
+                        btn.style.background = 'var(--primary)';
+                        btn.style.color = '#000';
+                        btn.innerHTML = '<i class="fas fa-play"></i>';
+                        btn.title = 'Start Automation';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to toggle status');
+            }
+        }
+
         // Smooth polling for status updates
         if ("<%= status %>" !== "Connected") {
             setTimeout(() => {
-                // Fetch the page content without full reload if possible, 
-                // but a reload is safest for simple EJS setups
                 window.location.reload();
             }, 10000);
         }
