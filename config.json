@@ -1,0 +1,5 @@
+{
+    "followUpMessage": "Hi! We're just checking in to see if you have any questions about our institute. We're here to help!",
+    "followUpDays": 2,
+    "checkIntervalMinutes": 60
+}

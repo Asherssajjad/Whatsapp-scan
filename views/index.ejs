@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus | WhatsApp Automation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface: rgba(22, 28, 45, 0.6);
+            --surface-hover: rgba(30, 38, 56, 0.8);
+            --primary: #00ff88;
+            --primary-glow: rgba(0, 255, 136, 0.3);
+            --secondary: #00d4ff;
+            --danger: #ff3366;
+            --danger-glow: rgba(255, 51, 102, 0.3);
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(0, 255, 136, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(0, 212, 255, 0.08), transparent 25%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 260px;
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-right: 1px solid var(--border);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand i {
+            -webkit-text-fill-color: var(--primary);
+        }
+
+        .nav-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-item {
+            padding: 12px 16px;
+            border-radius: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: var(--surface-hover);
+            color: var(--text-main);
+            transform: translateX(5px);
+        }
+
+        .nav-item.active {
+            border-left: 3px solid var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2.5rem;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        .title {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        /* Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Cards */
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .card-header i {
+            color: var(--secondary);
+        }
+
+        /* Connection Status */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+
+        .status-connected {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--primary);
+            border: 1px solid var(--primary-glow);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .status-disconnected {
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger-glow);
+            box-shadow: 0 0 15px var(--danger-glow);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 var(--danger-glow); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 51, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0); }
+        }
+
+        .qr-wrapper {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+        }
+
+        .qr-wrapper img {
+            width: 220px;
+            height: 220px;
+            border-radius: 12px;
+            border: 4px solid white;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .form-control {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+
+        textarea.form-control {
+            height: 120px;
+            resize: vertical;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), #00c868);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px var(--primary-glow);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px var(--primary-glow);
+        }
+
+        /* Contacts Table */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+
+        .contacts-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+        }
+
+        .contacts-table th {
+            padding: 1rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        .contacts-table td {
+            padding: 1.2rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            vertical-align: middle;
+        }
+
+        .contacts-table tr {
+            transition: background 0.3s ease;
+        }
+
+        .contacts-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            margin-right: 15px;
+        }
+
+        .contact-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .badge {
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 1.5rem; }
+            .brand { margin-bottom: 1.5rem; }
+            .nav-items { flex-direction: row; flex-wrap: wrap; }
+            .main-content { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="brand">
+            <i class="fab fa-whatsapp"></i>
+            Nexus
+        </div>
+        <div class="nav-items">
+            <a href="#" class="nav-item active">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+            <a href="#" class="nav-item" onclick="window.scrollTo(0, document.body.scrollHeight);">
+                <i class="fas fa-users"></i> Audience
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-cog"></i> Settings
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="header">
+            <div>
+                <h1 class="title">System Overview</h1>
+                <p class="subtitle">Monitor your automated WhatsApp interactions</p>
+            </div>
+            
+            <div class="status-indicator <%= status === 'Connected' ? 'status-connected' : 'status-disconnected' %>">
+                <i class="fas <%= status === 'Connected' ? 'fa-check-circle' : 'fa-exclamation-triangle' %>"></i>
+                <%= status %>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Connection Card -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <i class="fas fa-plug"></i> Connection Link
+                </div>
+                
+                <% if (qr && status !== 'Connected') { %>
+                    <div class="qr-wrapper">
+                        <p style="color: var(--text-muted); font-size: 0.9rem; text-align: center;">Scan with WhatsApp to link device</p>
+                        <img src="<%= qr %>" alt="QR Code">
+                    </div>
+                <% } else if (status === 'Connected') { %>
+                    <div style="text-align: center; padding: 2rem 0;">
+                        <i class="fab fa-whatsapp" style="font-size: 4rem; color: var(--primary); margin-bottom: 1rem; filter: drop-shadow(0 0 10px var(--primary-glow));"></i>
+                        <h3>System is Online</h3>
+                        <p class="subtitle">Listening for new contacts and scheduling follow-ups.</p>
+                    </div>
+                <% } else { %>
+                    <div class="empty-state">
+                        <i class="fas fa-circle-notch fa-spin"></i>
+                        <p>Initializing WhatsApp Core Engine...</p>
+                    </div>
+                <% } %>
+            </div>
+
+            <!-- Configuration Card -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <i class="fas fa-sliders-h"></i> Automation Rules
+                </div>
+                
+                <form action="/update-config" method="POST">
+                    <div class="form-group">
+                        <label>Follow-up Message Template</label>
+                        <textarea class="form-control" name="message" required placeholder="Type your follow-up message here..."><%= config.followUpMessage %></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Trigger Delay (Days)</label>
+                        <input type="number" class="form-control" name="days" value="<%= config.followUpDays %>" min="1" required>
+                    </div>
+                    
+                    <button type="submit" class="btn">
+                        <i class="fas fa-save"></i> Apply Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Contacts Tracker -->
+        <div class="glass-card">
+            <div class="card-header">
+                <i class="fas fa-address-book"></i> Active Contacts Pipeline
+            </div>
+            
+            <div class="table-container">
+                <table class="contacts-table">
+                    <thead>
+                        <tr>
+                            <th>Contact identity</th>
+                            <th>Last Interaction</th>
+                            <th>Follow-ups Sent</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% contacts.forEach(c => { %>
+                            <tr>
+                                <td>
+                                    <div class="contact-info">
+                                        <div class="avatar">
+                                            <%= c.name ? c.name.charAt(0).toUpperCase() : '?' %>
+                                        </div>
+                                        <div>
+                                            <div style="font-weight: 500;"><%= c.name || 'Unknown User' %></div>
+                                            <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">
+                                                <%= c.id.split('@')[0] %>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 500;"><%= new Date(c.last_msg_received * 1000).toLocaleDateString() %></div>
+                                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">
+                                        <%= new Date(c.last_msg_received * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) %>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge"><%= c.followup_count %> Delivered</span>
+                                </td>
+                                <td>
+                                    <span style="color: var(--primary); font-size: 0.9rem;">
+                                        <i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i> Tracking
+                                    </span>
+                                </td>
+                            </tr>
+                        <% }) %>
+                        
+                        <% if (contacts.length === 0) { %>
+                            <tr>
+                                <td colspan="4">
+                                    <div class="empty-state">
+                                        <i class="fas fa-inbox"></i>
+                                        <h3>No Contacts Tracked Yet</h3>
+                                        <p>When someone messages your WhatsApp, they will appear here automatically.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Smooth polling for status updates
+        if ("<%= status %>" !== "Connected") {
+            setTimeout(() => {
+                // Fetch the page content without full reload if possible, 
+                // but a reload is safest for simple EJS setups
+                window.location.reload();
+            }, 10000);
+        }
+    </script>
+</body>
+</html>
