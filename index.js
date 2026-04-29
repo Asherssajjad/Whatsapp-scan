@@ -78,11 +78,8 @@ client.on('ready', async () => {
     lastQR = '';
     console.log('WhatsApp Client Ready');
     
-        // Note: we moved past chat fetching to the manual 'Sync Chats' button to prevent startup timeouts
-        console.log('Bot is ready and listening for new messages.');
-    } catch (err) {
-        console.error('Failed to load past chats:', err);
-    }
+    // Note: we moved past chat fetching to the manual 'Sync Chats' button to prevent startup timeouts
+    console.log('Bot is ready and listening for new messages.');
 });
 
 client.on('message', async (msg) => {
