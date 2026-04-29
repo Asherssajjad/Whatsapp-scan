@@ -452,9 +452,14 @@
         <div class="glass-card">
             <div class="card-header" style="justify-content: space-between;">
                 <div><i class="fas fa-address-book"></i> Active Contacts Pipeline</div>
-                <button id="bulkSendBtn" class="btn" style="width: auto; padding: 10px 20px; font-size: 0.9rem; background: var(--secondary);" onclick="openBulkModal()">
-                    <i class="fas fa-paper-plane"></i> Send Custom Message to Selected
-                </button>
+                <div>
+                    <button class="btn" style="width: auto; padding: 10px 20px; font-size: 0.9rem; background: var(--primary); display: inline-flex; margin-right: 10px;" onclick="syncChats(this)">
+                        <i class="fas fa-sync"></i> Sync Past Chats
+                    </button>
+                    <button id="bulkSendBtn" class="btn" style="width: auto; padding: 10px 20px; font-size: 0.9rem; background: var(--secondary); display: inline-flex;" onclick="openBulkModal()">
+                        <i class="fas fa-paper-plane"></i> Send Custom Message to Selected
+                    </button>
+                </div>
             </div>
             
             <div class="table-container">
@@ -563,6 +568,26 @@
             document.getElementById('bulkModal').style.display = 'flex';
         }
         function closeBulkModal() { document.getElementById('bulkModal').style.display = 'none'; }
+
+        // Sync Chats Logic
+        async function syncChats(btn) {
+            btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> Syncing...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/sync-chats', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Successfully synced ${data.count} contacts from WhatsApp!`);
+                    window.location.reload();
+                } else {
+                    alert('Sync failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                alert('Error syncing chats. Are you connected to WhatsApp?');
+            }
+            btn.innerHTML = '<i class="fas fa-sync"></i> Sync Past Chats';
+            btn.disabled = false;
+        }
 
         // Send Bulk Logic
         async function sendBulkMessage() {

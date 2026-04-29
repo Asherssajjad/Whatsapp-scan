@@ -13,6 +13,7 @@ const port = process.env.PORT || 3000;
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
 
 let clientStatus = 'Disconnected';
 let lastQR = '';
@@ -77,44 +78,8 @@ client.on('ready', async () => {
     lastQR = '';
     console.log('WhatsApp Client Ready');
     
-    // Fetch past chats so they appear on the dashboard
-    try {
-        console.log('Fetching past chats from WhatsApp...');
-        const chats = await client.getChats();
-        const now = Math.floor(Date.now() / 1000);
-        
-        let loadedCount = 0;
-        for (const chat of chats) {
-            // Only add private chats (not groups)
-            if (!chat.isGroup && !chat.id._serialized.includes('@g.us')) {
-                // Use the chat's last message timestamp, or current time
-                const timestamp = chat.timestamp || now;
-                
-                await pool.query(
-                    `INSERT INTO contacts (id, name, last_msg_received, status) 
-                     VALUES ($1, $2, $3, 'paused') 
-                     ON CONFLICT(id) DO NOTHING`,
-                    [chat.id._serialized, chat.name || 'Unknown User', timestamp]
-                );
-                
-                // Fetch last 10 messages for this chat so old chats are visible
-                try {
-                    const pastMsgs = await chat.fetchMessages({ limit: 10 });
-                    for (const m of pastMsgs) {
-                        await pool.query(
-                            `INSERT INTO messages (id, contact_id, body, timestamp, is_from_me) 
-                             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
-                            [m.id._serialized, chat.id._serialized, m.body, m.timestamp, m.fromMe]
-                        );
-                    }
-                } catch(e) {
-                    // Ignore errors if chat messages can't be fetched
-                }
-                
-                loadedCount++;
-            }
-        }
-        console.log(`Successfully loaded ${loadedCount} past private chats into the database.`);
+        // Note: we moved past chat fetching to the manual 'Sync Chats' button to prevent startup timeouts
+        console.log('Bot is ready and listening for new messages.');
     } catch (err) {
         console.error('Failed to load past chats:', err);
     }
@@ -218,7 +183,26 @@ app.get('/chat/:id', async (req, res) => {
         const contact = contactRes.rows[0];
         if (!contact) return res.redirect('/');
         
-        const msgRes = await pool.query('SELECT * FROM messages WHERE contact_id = $1 ORDER BY timestamp ASC', [contactId]);
+        let msgRes = await pool.query('SELECT * FROM messages WHERE contact_id = $1 ORDER BY timestamp ASC', [contactId]);
+        
+        // Lazy load messages from WhatsApp if none exist in database
+        if (msgRes.rows.length === 0 && clientStatus === 'Connected') {
+            try {
+                const chat = await client.getChatById(contactId);
+                const pastMsgs = await chat.fetchMessages({ limit: 20 });
+                for (const m of pastMsgs) {
+                    await pool.query(
+                        `INSERT INTO messages (id, contact_id, body, timestamp, is_from_me) 
+                         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+                        [m.id._serialized, contactId, m.body, m.timestamp, m.fromMe]
+                    );
+                }
+                msgRes = await pool.query('SELECT * FROM messages WHERE contact_id = $1 ORDER BY timestamp ASC', [contactId]);
+            } catch (err) {
+                console.error("Failed to lazy load messages:", err);
+            }
+        }
+
         res.render('chat', { 
             status: clientStatus, 
             contact, 
@@ -258,7 +242,7 @@ app.post('/toggle-status/:id', async (req, res) => {
     res.json({ success: false });
 });
 
-app.post('/bulk-send', express.json(), async (req, res) => {
+app.post('/bulk-send', async (req, res) => {
     const { contactIds, message } = req.body;
     if (clientStatus === 'Connected' && message && Array.isArray(contactIds)) {
         let sentCount = 0;
@@ -275,6 +259,33 @@ app.post('/bulk-send', express.json(), async (req, res) => {
         return res.json({ success: true, sentCount });
     }
     res.json({ success: false });
+});
+
+app.post('/api/sync-chats', async (req, res) => {
+    if (clientStatus !== 'Connected') return res.json({ success: false, error: 'WhatsApp not connected' });
+    
+    try {
+        const chats = await client.getChats();
+        const now = Math.floor(Date.now() / 1000);
+        let loadedCount = 0;
+        
+        for (const chat of chats) {
+            if (!chat.isGroup && chat.id._serialized.endsWith('@c.us')) {
+                const timestamp = chat.timestamp || now;
+                await pool.query(
+                    `INSERT INTO contacts (id, name, last_msg_received, status) 
+                     VALUES ($1, $2, $3, 'paused') 
+                     ON CONFLICT(id) DO NOTHING`,
+                    [chat.id._serialized, chat.name || 'Unknown User', timestamp]
+                );
+                loadedCount++;
+            }
+        }
+        res.json({ success: true, count: loadedCount });
+    } catch (err) {
+        console.error('Sync failed:', err);
+        res.json({ success: false, error: err.message });
+    }
 });
 
 // Start Everything
