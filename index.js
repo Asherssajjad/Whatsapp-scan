@@ -72,10 +72,37 @@ client.on('qr', async (qr) => {
     clientStatus = 'Waiting for Scan';
 });
 
-client.on('ready', () => {
+client.on('ready', async () => {
     clientStatus = 'Connected';
     lastQR = '';
     console.log('WhatsApp Client Ready');
+    
+    // Fetch past chats so they appear on the dashboard
+    try {
+        console.log('Fetching past chats from WhatsApp...');
+        const chats = await client.getChats();
+        const now = Math.floor(Date.now() / 1000);
+        
+        let loadedCount = 0;
+        for (const chat of chats) {
+            // Only add private chats (not groups)
+            if (!chat.isGroup && !chat.id._serialized.includes('@g.us')) {
+                // Use the chat's last message timestamp, or current time
+                const timestamp = chat.timestamp || now;
+                
+                await pool.query(
+                    `INSERT INTO contacts (id, name, last_msg_received, status) 
+                     VALUES ($1, $2, $3, 'paused') 
+                     ON CONFLICT(id) DO NOTHING`,
+                    [chat.id._serialized, chat.name || 'Unknown User', timestamp]
+                );
+                loadedCount++;
+            }
+        }
+        console.log(`Successfully loaded ${loadedCount} past private chats into the database.`);
+    } catch (err) {
+        console.error('Failed to load past chats:', err);
+    }
 });
 
 client.on('message', async (msg) => {
@@ -199,6 +226,20 @@ app.post('/chat/:id/send', async (req, res) => {
         }
     }
     res.redirect(`/chat/${contactId}`);
+});
+
+app.post('/toggle-status/:id', async (req, res) => {
+    const contactId = req.params.id;
+    try {
+        const contactRes = await pool.query('SELECT status FROM contacts WHERE id = $1', [contactId]);
+        if (contactRes.rows.length > 0) {
+            const newStatus = contactRes.rows[0].status === 'active' ? 'paused' : 'active';
+            await pool.query('UPDATE contacts SET status = $1 WHERE id = $2', [newStatus, contactId]);
+        }
+    } catch (e) {
+        console.error('Error toggling status:', e);
+    }
+    res.redirect('/');
 });
 
 // Start Everything

@@ -491,11 +491,22 @@
                                     <span class="badge"><%= c.followup_count %> Delivered</span>
                                 </td>
                                 <td>
-                                    <span style="color: var(--primary); font-size: 0.9rem;">
-                                        <i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i> Tracking
-                                    </span>
+                                    <% if (c.status === 'active') { %>
+                                        <span style="color: var(--primary); font-size: 0.9rem;">
+                                            <i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i> Active
+                                        </span>
+                                    <% } else { %>
+                                        <span style="color: var(--text-muted); font-size: 0.9rem;">
+                                            <i class="fas fa-pause-circle" style="font-size: 0.9rem; vertical-align: middle; margin-right: 4px;"></i> Paused
+                                        </span>
+                                    <% } %>
                                 </td>
                                 <td>
+                                    <form action="/toggle-status/<%= c.id %>" method="POST" style="display: inline;">
+                                        <button type="submit" class="btn" style="padding: 8px 12px; font-size: 0.85rem; width: auto; display: inline-flex; background: <%= c.status === 'active' ? 'var(--surface)' : 'var(--primary)' %>; color: <%= c.status === 'active' ? 'var(--text-main)' : '#000' %>; border: 1px solid var(--border); margin-right: 5px;" title="<%= c.status === 'active' ? 'Pause Automation' : 'Start Automation' %>">
+                                            <i class="fas <%= c.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i>
+                                        </button>
+                                    </form>
                                     <a href="/chat/<%= c.id %>" class="btn" style="padding: 8px 16px; font-size: 0.85rem; width: auto; display: inline-flex; text-decoration: none;">
                                         <i class="fas fa-comment-dots"></i> View Chat
                                     </a>
